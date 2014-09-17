@@ -1,0 +1,391 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+	<meta charset="UTF-8" />
+	<title>airbag seabattle</title>
+	<script type="text/javascript" src="js/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+           margin: 0;
+           padding: 0;
+           background-color:#666666;
+        }
+        canvas {
+            margin: auto;
+        }        
+    </style>
+</head>
+<body>
+<br><br>    
+    
+<script type="text/javascript">
+
+var playfield = {width: 600, height:520 };    
+var game = new Phaser.Game(playfield.width, playfield.height, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+var game_state = "idle";    
+var fishs = [];
+var harpoon;
+var heli;
+var palm;
+var ship;
+var submarine = {};
+var visitor = {};
+var visitor_sinking;
+
+var hero = {};
+var oxygen_full = 100;
+var oxygen = oxygen_full;
+var start_sec;
+var score = 0;
+    
+var idle_texts = {state: "Game Over", controls: "X to start", score: "your score: 0",
+                 description: "During the next decade the materials needed\nto produce the airbags you love are getting rare.\nOn July 10th 2007 you as a member of the\nairbag tactical sea forces received orders from\nairbag headquarters to hunt for fresh material\nsomewhere in the atlantic...\n\nEvery three months one of the best twenty airbag\ntactical sea force members will get a free airbag."};
+var game_texts = {oxygen: "oxygen: "+oxygen, score:"score: "+score};
+var idle_text;    
+var game_text;
+
+var sounds = {};
+    
+function preload() {
+    game.load.image('bg', 'assets/bg.gif');
+    game.load.spritesheet('fish1_1', 'assets/hai.gif',105,29,2);
+    game.load.spritesheet('fish1_2', 'assets/stachelfisch.gif',75,55,2);
+    game.load.spritesheet('fish2_1', 'assets/schwertfisch.gif',64,35,2);
+    game.load.spritesheet('fish2_2', 'assets/mechfisch.gif',82,32,2);
+    game.load.spritesheet('fish3_1', 'assets/bosfisch.gif',60,33,2);
+    game.load.spritesheet('fish3_2', 'assets/kugelfisch.gif',58,43,2);
+    game.load.spritesheet('fish4_1', 'assets/nadelfisch.gif',66,45,2);
+    game.load.spritesheet('fish4_2', 'assets/trauerfisch.gif', 66,23,2);
+    game.load.spritesheet('fish5_1', 'assets/streberfisch.gif', 60,19,2);
+    game.load.spritesheet('fish5_2', 'assets/beissfisch.gif',81,26,2);
+    game.load.spritesheet('hero', 'assets/taucher.gif', 30,90,2);
+    game.load.spritesheet('harpoon', 'assets/harpune.gif', 6,30,3);
+    game.load.spritesheet('heli', 'assets/helicopter.gif', 190, 58, 1);
+    game.load.spritesheet('palm', 'assets/palme.gif', 95, 98, 2);
+    game.load.spritesheet('ship', 'assets/schiff.gif', 179, 117, 2);
+    game.load.spritesheet('submarine', 'assets/uboot.gif', 19, 25, 4);
+    game.load.spritesheet('visitor', 'assets/seebesucher.gif', 90, 35, 7);
+    
+    game.load.audio('harpoon', ['assets/harpoon.mp3', 'assets/harpoon.ogg']);
+    game.load.audio('beach', ['assets/beach.mp3', 'assets/beach.ogg']);
+    game.load.audio('end', ['assets/end.mp3', 'assets/end.ogg']);
+    game.load.audio('fish', ['assets/fish.mp3', 'assets/fish.ogg']);
+    game.load.audio('heli', ['assets/heli.mp3', 'assets/heli.ogg']);
+    game.load.audio('oxygen', ['assets/oxygen.mp3', 'assets/oxygen.ogg']);
+    game.load.audio('ship', ['assets/ship.mp3', 'assets/ship.ogg']);
+    game.load.audio('shipcapture', ['assets/shipcapture.mp3', 'assets/shipcapture.ogg']);
+    game.load.audio('shiphorn', ['assets/shiphorn.mp3', 'assets/shiphorn.ogg']);
+    game.load.audio('sink', ['assets/sink.mp3', 'assets/sink.ogg']);
+}
+
+function create() {
+    game.add.sprite(0, 0, 'bg');
+
+    var fish_y = 164;
+    var fish_step_y = 55;
+    for (var i = 0; i < 5; i++) {
+        fishs[i] = {};
+        fishs[i].normal_y = fish_y;
+        fishs[i].sprite = game.add.sprite(randomIntFromInterval(20, 450), fish_y, 'fish'+(i+1)+'_'+randomIntFromInterval(1,2));
+        fishs[i].sprite.hit_count = 0;
+        fishs[i].vel = - randomIntFromInterval(1, 2);
+        fish_y += fish_step_y;
+        fishs[i].sprite.animations.add('left',[0],4,true);
+        fishs[i].sprite.animations.add('right',[1],4,true);
+        fishs[i].sprite.animations.play('left');
+        game.physics.enable(fishs[i].sprite, Phaser.Physics.ARCADE);
+    }    
+    
+    palm = game.add.sprite(467, 21, 'palm');
+    palm.animations.add('wag',[0,1],2,true);
+    palm.animations.play('wag');
+
+    submarine.sprite = game.add.sprite(285, 131, 'submarine');
+    submarine.sprite.animations.add('left',[0,1],9,true);
+    submarine.sprite.animations.add('right',[2,3],9,true);
+    submarine.sprite.animations.play('left');
+    submarine.vel = 0.4;
+
+    visitor.sprite = game.add.sprite(500, 126, 'visitor');
+    visitor.sprite.animations.add('float',[0],0,true);
+    visitor_sinking = visitor.sprite.animations.add('sink',[1,2,3,4,5,4,3,4,5,4,5,6],5,false);
+    visitor.sprite.animations.play('float');
+    visitor.state = "float";
+    visitor.direction = -1;
+
+    hero.sprite = game.add.sprite(285, 428, 'hero');
+    hero.sprite.animations.add('dive',[0,1],2,true);
+    hero.sprite.animations.play('dive');
+    hero.vel = 0;
+
+    harpoon = game.add.sprite(0, 0, 'harpoon');
+    harpoon.animations.add('fly',[0,1,2],7,true);
+    harpoon.exists = false;
+
+    heli = game.add.sprite(0, 27, 'heli');
+    heli.animations.add('fly',[0],0,true);
+    heli.exists = false;
+
+    ship = game.add.sprite(0, 40, 'ship');
+    ship.animations.add('left',[0],0,true);
+    ship.animations.add('right',[1],0,true);
+    ship.animations.play('right');
+    ship.exists = false;
+
+    game.physics.enable([harpoon, visitor.sprite], Phaser.Physics.ARCADE);
+
+    cursors = game.input.keyboard.createCursorKeys();
+    game.input.keyboard.addKeyCapture([ Phaser.Keyboard.SPACEBAR ]);
+    
+    init_sound();
+    
+    idle_text = game.add.text(game.world.centerX, game.world.centerY+64, "abc", {
+        font: "12px Arial",
+        fill: "#ccccff",
+        align: "center"
+    });
+    idle_text.anchor.setTo(0.5, 0.5);
+
+    game_text = game.add.text(game.world.centerX, 20, "def", {
+        font: "12px Arial",
+        fill: "#0000ff",
+        align: "center"
+    });
+    game_text.anchor.setTo(0.5, 0.5);
+
+    init_idle();
+}
+
+function init_sound() {
+    sounds.harpoon = game.add.audio('harpoon',1,false);
+    sounds.beach = game.add.audio('beach',1,true);
+    sounds.beach.play('',0,1,true);  
+    sounds.fish = game.add.audio('fish',1,false);
+    sounds.sink = game.add.audio('sink',1,false);
+    sounds.end = game.add.audio('end',1,false);
+    sounds.shiphorn = game.add.audio('shiphorn',1,false);
+    sounds.shipcapture = game.add.audio('shipcapture',1,false);
+    sounds.heli = game.add.audio('heli',1,false);
+    sounds.oxygen = game.add.audio('oxygen',1,false);
+}    
+
+function init_idle() {
+    game_state = "idle";
+    
+    ship.exists = false;
+    visitor.state = "float";
+    visitor.sprite.animations.play('float');
+    game_text.setText("");
+    idle_texts.score = "your score: "+score;
+    idle_text.setText(idle_texts.description+"\n\n"+idle_texts.state+"\n"+idle_texts.controls+"\n"+idle_texts.score+"\n");
+}
+
+function init_game() {
+    game_state = "game";
+    start_sec = Math.floor(game.time.time / 1000);
+    score = 0;
+    
+    idle_text.setText("");
+    update_game_text();
+}
+    
+function update_game_text () {
+    game_texts.oxygen = "oxygen: "+oxygen;
+    game_texts.score = "score: "+score;
+    game_text.setText(game_texts.oxygen+"\n"+game_texts.score);
+}    
+    
+function update() {
+    if (game_state == "idle") {
+        moveFishes();
+        moveHeli();
+        moveVisitor();
+        moveSubmarine();
+        if (game.input.keyboard.justReleased(Phaser.Keyboard.X)) {
+            init_game();
+        }    
+    }    
+    else {
+        moveFishes();
+        moveHero();
+        moveHeli();
+        moveSubmarine();
+        moveVisitor();
+        moveHarpoon();
+        moveShip();
+
+        game.physics.arcade.collide(harpoon, visitor.sprite, harpoonHitsVisitor, null, this);
+        for (var i = 0; i < 5; i++) { game.physics.arcade.collide(harpoon, fishs[i].sprite, harpoonHitsFish, null, this); }
+        oxygen = oxygen_full - (Math.floor(game.time.time / 1000) - start_sec);
+        update_game_text();
+        if (oxygen < 10) {
+            if (sounds.oxygen.isPlaying == false) {
+                sounds.oxygen.play('',0,1,true);
+            }
+        }    
+        if (oxygen < 0) {
+            sounds.oxygen.stop();
+            sounds.end.play('',0,1,false);
+            init_idle();
+        }    
+    }    
+}
+    
+function harpoonHitsVisitor(obj1, obj2) {
+    sounds.sink.play('',0,1,false);
+    score+=80;
+    harpoon.exists = false;
+    visitor.state = "sink";
+    visitor.sprite.animations.play('sink');
+}
+
+function harpoonHitsFish(obj1, obj2) {
+    sounds.fish.play('',0,1,false);
+    score -=20;
+    harpoon.exists = false;
+    obj2.hit_count = 8;
+}
+
+function moveHarpoon() {
+    if (harpoon.exists) {
+        harpoon.body.y -= 3;
+        if (harpoon.body.y <= 135) {
+            harpoon.exists = false;
+            harpoon.body.x = hero.sprite.x + hero.sprite.width - harpoon.body.width;
+            harpoon.body.y = hero.sprite.y;
+        }    
+    } else { // spawn?
+        if (game.input.keyboard.isDown(Phaser.Keyboard.X)) {
+            harpoon.exists = true;
+            sounds.harpoon.play('',0,1,false);            
+            harpoon.body.x = hero.sprite.x + hero.sprite.width - harpoon.body.width;
+            harpoon.body.y = hero.sprite.y;
+        }
+    }    
+}    
+    
+function moveVisitor() {
+    if (visitor.state == 'float') {
+        visitor.sprite.body.x += (visitor.direction * ((randomIntFromInterval(1, 100)) / 100) );
+        if (visitor.sprite.body.x < 0) {
+            visitor.sprite.body.x = 0;
+            visitor.direction = 1;
+        }    
+        if ((visitor.sprite.body.x > (playfield.width - visitor.sprite.body.width)) ) {
+            visitor.sprite.body.x = (playfield.width - visitor.sprite.body.width);
+            visitor.direction = -1;
+        }    
+    } else if (visitor.state == 'sink') {
+        if (visitor_sinking.isFinished) {
+            if (sounds.shiphorn.isPlaying == false) { 
+                sounds.shiphorn.play('',0,1,false);
+            }    
+            ship.exists = true;
+            ship.angle = -5;
+        }    
+    }    
+}    
+
+function moveShip() {
+    if (ship.exists) {
+        ship.x += 4.5;
+        if ((ship.x >= (visitor.sprite.body.x - 45)) && visitor.state == 'sink') {
+            if (sounds.shipcapture.isPlaying == false) {
+                sounds.shipcapture.play('',0,1,false);
+            }
+            ship.angle = 0;
+            visitor.sprite.body.x = 500;
+            visitor.state = "float";
+            visitor.sprite.animations.play('float');
+            visitor.direction = -1;            
+        }    
+        else if (ship.x > playfield.width) {
+            ship.exists = false;
+        }    
+    } else {
+        ship.x = -ship.width;
+        ship.y = 55;
+    }    
+}    
+
+function moveSubmarine() {
+    submarine.sprite.x += submarine.vel;
+    if (submarine.sprite.x < 0) {
+        submarine.sprite.x = 0;
+        submarine.vel = 0.4;
+        submarine.sprite.animations.play('left');
+    }    
+    if ((submarine.sprite.x > (playfield.width - submarine.sprite.width)) ) {
+        submarine.sprite.x = (playfield.width - submarine.sprite.width);
+        submarine.vel = -0.4;
+        submarine.sprite.animations.play('right');
+    }    
+}
+
+function moveHeli() {
+    if (heli.exists) {
+        heli.x -= 1;
+        if (heli.x < -(heli.width)) {
+            sounds.heli.stop();
+            heli.exists = false;
+        }    
+    } else { //spawn?
+        if (randomIntFromInterval(1, 800) == 1) {
+            sounds.heli.play('',0,1,true);
+            heli.exists = true;
+            heli.x = playfield.width;
+        }    
+    }    
+}    
+    
+function moveFishes() {
+    for (var i = 0; i < 5; i++) {
+        if (fishs[i].sprite.hit_count > 0) {
+            fishs[i].sprite.body.y = fishs[i].normal_y - 4; 
+            fishs[i].sprite.hit_count -= 1;
+        } else {
+            fishs[i].sprite.body.y = fishs[i].normal_y; 
+        }    
+        
+        fishs[i].sprite.body.x += fishs[i].vel;
+        if (fishs[i].sprite.body.x < 0) {
+            fishs[i].sprite.body.x = 0;
+            fishs[i].vel = randomIntFromInterval(1, 2);
+            fishs[i].sprite.animations.play('right');
+        }    
+        if (fishs[i].sprite.body.x > (playfield.width - fishs[i].sprite.body.width) ) {
+            fishs[i].sprite.body.x = (playfield.width - fishs[i].sprite.body.width);
+            fishs[i].vel = - randomIntFromInterval(1, 2);
+            fishs[i].sprite.animations.play('left');
+        }    
+    }
+}
+
+function moveHero() {
+    if (cursors.left.isDown) {
+        hero.vel -= 0.05;
+        if (hero.vel < -3) hero.vel = -3;
+    }
+    else if (cursors.right.isDown) {
+        hero.vel += 0.05;
+        if (hero.vel > 3) hero.vel = 3;
+    }    
+    hero.sprite.x += hero.vel;
+    if (hero.sprite.x < 0) {
+        hero.vel = 0;
+        hero.sprite.x = 0
+    }    
+    if ((hero.sprite.x > (playfield.width - hero.sprite.width)) ) {
+        hero.vel = 0;
+        hero.sprite.x = (playfield.width - hero.sprite.width);
+    }    
+}
+    
+function randomIntFromInterval(min,max) {
+    return Math.floor(Math.random()*(max-min+1)+min);
+}  
+
+</script>
+
+</body>
+</html>
