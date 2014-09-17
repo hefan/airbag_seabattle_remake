@@ -1,4 +1,4 @@
-airbag Seabattle
+airbag seabattle
 ================
 
 Just a quickly done 1:1 Port of a java game from 1996. Useful to learn the basics of the Phaser HTML game framework (https://github.com/photonstorm/phaser).
